@@ -731,3 +731,269 @@ public class PremiumRPGGUI {
         vsRow.add(vsLbl);
         vsRow.add(playerPane);
         bg.add(vsRow, BorderLayout.CENTER);
+
+
+ 
+        // ── BATTLE LOG + ACTIONS ──────────────────────────────────
+        JPanel bottomPane = new JPanel(new BorderLayout(10, 0));
+        bottomPane.setOpaque(false);
+        bottomPane.setBorder(new EmptyBorder(0, 40, 24, 40));
+ 
+        bBattleLog = label("", F_BODY, C_SILVER);
+        bBattleLog.setPreferredSize(new Dimension(400, 80));
+        bBattleLog.setVerticalAlignment(SwingConstants.TOP);
+        JPanel logPanel = glassPanel();
+        logPanel.setLayout(new BorderLayout());
+        logPanel.setBorder(new EmptyBorder(12, 16, 12, 16));
+        logPanel.setPreferredSize(new Dimension(400, 90));
+        logPanel.add(bBattleLog, BorderLayout.CENTER);
+ 
+        bActionPanel = new JPanel(new GridLayout(2, 2, 12, 12));
+        bActionPanel.setOpaque(false);
+        bActionPanel.setPreferredSize(new Dimension(480, 100));
+ 
+        String[] actionLabels = {"  ⚔  ATTACK  ","  ✨  SKILLS  ","  🎒  ITEMS  ","  🏃  RETREAT  "};
+        Color[]  actionColors = {new Color(180,50,50), new Color(80,50,200), new Color(60,120,60), new Color(140,90,30)};
+        int[] aIdx = {0};
+        for (int i = 0; i < 4; i++) {
+            final int idx = i;
+            JButton b = fancyButton(actionLabels[i], actionColors[i]);
+            b.addActionListener(e -> handleBattleAction(idx));
+            bActionPanel.add(b);
+        }
+ 
+        bottomPane.add(logPanel,     BorderLayout.WEST);
+        bottomPane.add(bActionPanel, BorderLayout.EAST);
+        bg.add(bottomPane, BorderLayout.SOUTH);
+        return bg;
+    }
+ 
+    private void handleBattleAction(int action) {
+        if (!inBattle || currentEnemy == null || player == null) return;
+        playSfx("Click.wav");
+ 
+        boolean playerActed = false;
+ 
+        switch (action) {
+            case 0 -> { // Attack
+                int dmg = player.getAttack() + (int)(Math.random() * 8) + 1;
+                currentEnemy.takeDamage(dmg);
+                setBattleLog("You attack " + currentEnemy.getName() + " for " + dmg + " damage!");
+                playSfx("Win.wav");
+                playerActed = true;
+            }
+            case 1 -> { // Skills
+                showSkillDialog();
+                return;
+            }
+            case 2 -> { // Items
+                openInventoryUI();
+                refreshBattleHPBars();
+                return;
+            }
+            case 3 -> { // Retreat
+                inBattle = false;
+                setBattleLog("You retreat to the lobby...");
+                playBgMusic("lobby_music.wav");
+                refreshLobbyUI();
+                showScreen("LOBBY");
+                return;
+            }
+        }
+ 
+        if (playerActed) {
+            refreshBattleHPBars();
+            if (!currentEnemy.isAlive()) {
+                handleEnemyDefeated();
+                return;
+            }
+            // Enemy counter-attack
+            int eDmg = currentEnemy.getAttack() + (int)(Math.random() * 6);
+            player.takeDamage(eDmg);
+            setBattleLog(getBattleLog() +
+                "\n" + currentEnemy.getName() + " strikes back for " + eDmg + "!");
+            refreshBattleHPBars();
+            refreshHUD();
+ 
+            if (!player.isAlive()) {
+                inBattle = false;
+                showScreen("GAMEOVER");
+            }
+        }
+    }
+ 
+    private String lastLog = "";
+    private void setBattleLog(String txt) { lastLog = txt; if (bBattleLog != null) bBattleLog.setText("<html>" + txt.replace("\n","<br>") + "</html>"); }
+    private String getBattleLog() { return lastLog; }
+ 
+    private void refreshBattleHPBars() {
+        if (bEnemyHp != null && currentEnemy != null) {
+            bEnemyHp.setValue(Math.max(0, currentEnemy.getHp()));
+            bEnemyHp.setString(currentEnemy.getHp() + "/" + currentEnemy.getMaxHp());
+        }
+        if (bPlayerHp != null && player != null) {
+            bPlayerHp.setValue(Math.max(0, player.getHp()));
+            bPlayerHp.setString(player.getHp() + "/" + player.getMaxHp());
+        }
+        refreshHUD();
+    }
+ 
+    private void handleEnemyDefeated() {
+        playSfx("Win.wav");
+        int gold = 20 + (int)(Math.random() * 20);
+        player.addGold(gold);
+        boolean isBoss = currentEnemy instanceof Boss;
+ 
+        // Loot
+        String loot = "";
+        if (!isBoss && Math.random() < 0.5) {
+            if (Math.random() < 0.5) {
+                player.getInventory().addItem(new Potion("Health Potion","Restores 50 HP",50,1));
+                loot = "\n📦 Found: Health Potion!";
+            } else {
+                player.getInventory().addItem(new Weapon("Rusty Blade","A dented but usable sword",5));
+                loot = "\n📦 Found: Rusty Blade!";
+            }
+        }
+        if (isBoss) {
+            player.getInventory().addItem(new Weapon("Boss Relic","Imbued with the essence of the fallen boss",10));
+            player.setMana(player.getMaxMana());
+            loot = "\n★ Boss Relic obtained! +100 gold!";
+            player.addGold(100);
+        }
+        refreshHUD();
+ 
+        inBattle = false;
+        if (isBoss) {
+            // Advance world
+            currentMobIdx = 0;
+            currentWorldIdx++;
+            playBgMusic("lobby_music.wav");
+            showNarrativePopup("World Cleared!",
+                "You have defeated " + currentEnemy.getName() + "!\n" +
+                "+100 Gold" + loot + "\n\n" +
+                (currentWorldIdx < worlds.size() ?
+                    "Onwards to: " + worlds.get(currentWorldIdx).getName() :
+                    "The Riven Nexus awaits...") +
+                "\n\nReturn to lobby to continue.");
+            refreshLobbyUI();
+            showScreen("LOBBY");
+        } else {
+            currentMobIdx++;
+            player.setMana(player.getMaxMana());
+            showVictoryPause(gold + loot);
+        }
+    }
+ 
+    private void showVictoryPause(String msg) {
+        JDialog d = new JDialog(frame, "Victory!", false);
+        d.setSize(400, 220);
+        d.setLocationRelativeTo(frame);
+        d.setUndecorated(true);
+        JPanel p = new JPanel(new BorderLayout(0,12));
+        p.setBackground(new Color(10,30,20));
+        p.setBorder(BorderFactory.createLineBorder(C_WIN, 2));
+        JLabel t = label("⚔ ENEMY DEFEATED! ⚔", F_HEAD, C_WIN);
+        t.setHorizontalAlignment(SwingConstants.CENTER);
+        t.setBorder(new EmptyBorder(14,0,0,0));
+        JLabel info = label("<html><center>+" + msg.replace("\n","<br>") + "</center></html>", F_BODY, C_SILVER);
+        info.setHorizontalAlignment(SwingConstants.CENTER);
+        JPanel btns = new JPanel(new GridLayout(1,2,10,0));
+        btns.setOpaque(false);
+        btns.setBorder(new EmptyBorder(0,20,14,20));
+        JButton cont = fancyButton("Continue", C_WIN);
+        JButton lobby= fancyButton("Lobby",    new Color(80,60,100));
+        cont.addActionListener(e  -> { d.dispose(); startAdventure(); });
+        lobby.addActionListener(e -> { d.dispose(); refreshLobbyUI(); showScreen("LOBBY"); playBgMusic("lobby_music.wav"); });
+        btns.add(cont); btns.add(lobby);
+        p.add(t,    BorderLayout.NORTH);
+        p.add(info, BorderLayout.CENTER);
+        p.add(btns, BorderLayout.SOUTH);
+        d.setContentPane(p);
+        d.setVisible(true);
+    }
+ 
+    // ─────────────────────────────────────────────────────────────
+    //   GAME OVER
+    // ─────────────────────────────────────────────────────────────
+    private JPanel buildGameOverScreen() {
+        JPanel bg = makeParticleBackground();
+        bg.setLayout(new GridBagLayout());
+        JPanel box = glassPanel();
+        box.setPreferredSize(new Dimension(500, 320));
+        box.setLayout(new BoxLayout(box, BoxLayout.Y_AXIS));
+        box.setBorder(new EmptyBorder(40, 60, 40, 60));
+ 
+        JLabel title = label("★  GAME  OVER  ★", F_HUGE, C_HP);
+        title.setAlignmentX(Component.CENTER_ALIGNMENT);
+        JLabel sub   = label("You have fallen in battle.", F_BODY, C_SILVER);
+        sub.setAlignmentX(Component.CENTER_ALIGNMENT);
+ 
+        JButton restart = fancyButton("  ↺  RESTART FROM BEGINNING  ", C_PURPLE);
+        restart.setAlignmentX(Component.CENTER_ALIGNMENT);
+        restart.addActionListener(e -> {
+            playSfx("Click.wav");
+            player.reset();
+            currentWorldIdx = 0; currentMobIdx = 0; storyCompleted = false;
+            Arrays.fill(storylineDone, false);
+            worlds = buildWorlds();
+            refreshLobbyUI();
+            playBgMusic("lobby_music.wav");
+            showScreen("LOBBY");
+        });
+ 
+        JButton credits = fancyButton("  Credits  ", new Color(80,60,100));
+        credits.setAlignmentX(Component.CENTER_ALIGNMENT);
+        credits.addActionListener(e -> showCreditsDialog());
+ 
+        box.add(title); box.add(vgap(12)); box.add(sub); box.add(vgap(30));
+        box.add(restart); box.add(vgap(10)); box.add(credits);
+        bg.add(box);
+        return bg;
+    }
+ 
+    // ─────────────────────────────────────────────────────────────
+    //   VICTORY SCREEN (story end)
+    // ─────────────────────────────────────────────────────────────
+    private JPanel buildVictoryScreen() {
+        JPanel bg = makeParticleBackground();
+        bg.setLayout(new GridBagLayout());
+        JPanel box = glassPanel();
+        box.setPreferredSize(new Dimension(620, 380));
+        box.setLayout(new BoxLayout(box, BoxLayout.Y_AXIS));
+        box.setBorder(new EmptyBorder(40, 60, 40, 60));
+ 
+        JLabel title = label("★  T H E   S T O R Y   E N D S . . .  ★", F_HEAD, C_GOLD);
+        title.setAlignmentX(Component.CENTER_ALIGNMENT);
+        JTextArea story = new JTextArea(
+            "The Nexus trembles as the truth is revealed.\n" +
+            "The Master and the Villain vanish into the void.\n\n" +
+            "\"The hunt for the Master begins.\"\n\n" +
+            "— to be continued —");
+        story.setFont(F_BODY); story.setForeground(C_SILVER);
+        story.setOpaque(false); story.setEditable(false);
+        story.setAlignmentX(Component.CENTER_ALIGNMENT);
+ 
+        JButton again   = fancyButton("  ↺  Play Again  ", C_PURPLE);
+        again.setAlignmentX(Component.CENTER_ALIGNMENT);
+        again.addActionListener(e -> {
+            playSfx("Click.wav");
+            player.reset(); currentWorldIdx = 0; currentMobIdx = 0;
+            storyCompleted = false; Arrays.fill(storylineDone, false);
+            worlds = buildWorlds();
+            refreshLobbyUI(); playBgMusic("lobby_music.wav"); showScreen("LOBBY");
+        });
+        JButton credits = fancyButton("  Credits  ", new Color(80,60,100));
+        credits.setAlignmentX(Component.CENTER_ALIGNMENT);
+        credits.addActionListener(e -> showCreditsDialog());
+ 
+        box.add(title); box.add(vgap(16)); box.add(story); box.add(vgap(28));
+        box.add(again); box.add(vgap(10)); box.add(credits);
+        bg.add(box);
+        return bg;
+    }
+ 
+ 
+ 
+ 
+ 
