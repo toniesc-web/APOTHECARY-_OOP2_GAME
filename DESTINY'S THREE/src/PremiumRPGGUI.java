@@ -332,3 +332,402 @@ public class PremiumRPGGUI {
         bg.add(box, c);
         return bg;
     }
+
+    //   CHARACTER SELECT
+    private JPanel buildCharSelectScreen() {
+        JPanel bg = makeParticleBackground();
+        bg.setLayout(new BorderLayout());
+
+        JLabel hdr = label("― Choose Your Destiny ―", F_TITLE, C_GOLD);
+        hdr.setHorizontalAlignment(SwingConstants.CENTER);
+        hdr.setBorder(new EmptyBorder(36, 0, 16, 0));
+        bg.add(hdr, BorderLayout.NORTH);
+
+        JPanel cardsRow = new JPanel(new GridLayout(1, 3, 24, 0));
+        cardsRow.setOpaque(false);
+        cardsRow.setBorder(new EmptyBorder(10, 60, 20, 60));
+ 
+        String[][] data = {
+            {"warrior","WARRIOR","Auron Steelheart","HP 150 | MP 60 | ATK 20","Balanced strength and endurance.\nThe stalwart blade of the fortress."},
+            {"mage",   "MAGE",   "Kaelen Stormweaver","HP 100 | MP 120 | ATK 15","High magic, fragile resolve.\nThe arcane storm given form."},
+            {"rogue",  "ROGUE",  "Sire Instanzia","HP 120 | MP 80 | ATK 18","Agile, deadly, never seen coming.\nThe shadow that smiles."},
+        };
+
+        for (String[] d : data) {
+            cardsRow.add(buildHeroCard(d[0], d[1], d[2], d[3], d[4]));
+        }
+        bg.add(cardsRow, BorderLayout.CENTER);
+
+        JLabel tip = label("Click a hero card to begin", F_SMALL, new Color(100,90,150));
+        tip.setHorizontalAlignment(SwingConstants.CENTER);
+        tip.setBorder(new EmptyBorder(0, 0, 20, 0));
+        bg.add(tip, BorderLayout.SOUTH);
+        return bg;
+    }
+
+    private JPanel buildHeroCard(String imgKey, String cls, String name, String stats, String desc) {
+
+        JPanel card = new JPanel(new BorderLayout(0, 10)) {
+            @Override protected void paintComponent(Graphics g2d) {
+
+                Graphics2D g = (Graphics2D) g2d;
+                g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g.setColor(C_PANEL);
+                g.fillRoundRect(0, 0, getWidth(), getHeight(), 18, 18);
+                g.setColor(C_BORDER);
+                g.setStroke(new BasicStroke(1.5f));
+                g.drawRoundRect(1, 1, getWidth()-2, getHeight()-2, 18, 18);
+            }
+
+        };
+        card.setOpaque(false);
+        card.setBorder(new EmptyBorder(20, 20, 20, 20));
+        card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+
+        // Hero portrait
+        Image raw = imgs.get(imgKey);
+        Image scaled = raw.getScaledInstance(200, 200, Image.SCALE_SMOOTH);
+        JLabel portrait = new JLabel(new ImageIcon(scaled), SwingConstants.CENTER);
+        portrait.setOpaque(false);
+
+        // Labels
+        JLabel clsLabel  = label(cls,   F_HEAD, C_GOLD);
+        JLabel nameLabel = label(name,  F_BODY, C_SILVER);
+        JLabel statsLabel= label(stats, F_SMALL,C_ATK);
+        JTextArea descArea = new JTextArea(desc);
+        descArea.setFont(F_SMALL);
+        descArea.setForeground(new Color(160,150,190));
+        descArea.setOpaque(false);
+        descArea.setEditable(false);
+        descArea.setFocusable(false);
+        descArea.setWrapStyleWord(true);
+        descArea.setLineWrap(true);
+
+        clsLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        nameLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        statsLabel.setHorizontalAlignment(SwingConstants.CENTER);
+
+        JPanel info = new JPanel();
+        info.setOpaque(false);
+        info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));
+        for (Component c : new Component[]{clsLabel, nameLabel, vgap(4), statsLabel, vgap(8), descArea})
+            info.add(c);
+
+        card.add(portrait, BorderLayout.CENTER);
+        card.add(info,     BorderLayout.SOUTH);
+
+        // Hover & click
+        card.addMouseListener(new MouseAdapter() {
+
+            Color normalBorder = C_BORDER;
+            public void mouseEntered(MouseEvent e) { card.putClientProperty("hover", true); card.repaint(); }
+            public void mouseExited (MouseEvent e) { card.putClientProperty("hover", false); card.repaint(); }
+            public void mouseClicked(MouseEvent e) {
+                playSfx("Click.wav");
+                selectHero(imgKey);
+            }
+        });
+
+        return card;
+    }
+
+    private void selectHero(String imgKey) {
+        switch (imgKey) {
+            case "warrior" -> player = new Warrior("Auron Steelheart");
+            case "mage"    -> player = new Mage("Kaelen Stormweaver");
+            default        -> player = new Rogue("Sire Instanzia");
+
+        }
+        currentWorldIdx = 0;
+        currentMobIdx   = 0;
+        storyCompleted  = false;
+        Arrays.fill(storylineDone, false);
+        refreshLobbyUI();
+        playBgMusic("intro_music.wav");
+        showScreen("LOBBY");
+        showNarrativePopup("Prologue",
+            "Three worlds once stood in harmony...\n\nUntil the sky cracked.\n\n" +
+            "Welcome, " + player.getName() + ".\nYour journey — and the fate of all worlds — begins now.");
+    }
+ 
+
+    //   LOBBY SCREEN
+    private JLabel   lobbyCharImg;
+    private JLabel   lobbyCharName;
+    private JLabel   lobbyWorldLabel;
+
+    private JPanel buildLobbyScreen() {
+        JPanel bg = makeParticleBackground();
+        bg.setLayout(new BorderLayout());
+
+        // TOP HUD
+        JPanel hud = buildHUD();
+        bg.add(hud, BorderLayout.NORTH);
+
+        // LEFT: character portrait 
+        JPanel leftPane = glassPanel();
+        leftPane.setLayout(new BoxLayout(leftPane, BoxLayout.Y_AXIS));
+        leftPane.setBorder(new EmptyBorder(24, 24, 24, 24));
+        leftPane.setPreferredSize(new Dimension(280, 0));
+
+        lobbyCharImg  = new JLabel("", SwingConstants.CENTER);
+        lobbyCharName = new JLabel("", SwingConstants.CENTER);
+        lobbyCharName.setFont(F_HEAD);
+        lobbyCharName.setForeground(C_GOLD);
+        lobbyCharName.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        lobbyWorldLabel = new JLabel("", SwingConstants.CENTER);
+        lobbyWorldLabel.setFont(F_SMALL);
+        lobbyWorldLabel.setForeground(C_SILVER);
+        lobbyWorldLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        leftPane.add(lobbyCharImg);
+        leftPane.add(vgap(10));
+        leftPane.add(lobbyCharName);
+        leftPane.add(vgap(4));
+        leftPane.add(lobbyWorldLabel); 
+
+        JPanel leftWrap = new JPanel(new BorderLayout());
+        leftWrap.setOpaque(false);
+        leftWrap.setBorder(new EmptyBorder(20, 20, 20, 10));
+        leftWrap.add(leftPane, BorderLayout.NORTH);
+        bg.add(leftWrap, BorderLayout.WEST);
+ 
+
+        // CENTER: main menu 
+        JPanel centerPane = new JPanel(new GridBagLayout());
+        centerPane.setOpaque(false);
+        GridBagConstraints gc = new GridBagConstraints();
+        gc.insets = new Insets(10, 0, 10, 0);
+        gc.fill = GridBagConstraints.HORIZONTAL;
+        gc.gridx = 0; gc.weightx = 1;
+
+
+        JLabel menuTitle = label("L O B B Y", F_TITLE, C_PURPLE);
+        menuTitle.setHorizontalAlignment(SwingConstants.CENTER);
+        gc.gridy = 0; gc.insets = new Insets(10, 40, 24, 40);
+        centerPane.add(menuTitle, gc);
+
+
+        String[][] btns = {
+
+            {"  ⚔  ADVENTURE MODE  ","adventure"},
+            {"  🏪  BRYCE'S STORE  ","store"},
+            {"  ⬆  CARL'S SWORD UPGRADER  ","upgrade"},
+            {"  🎒  INVENTORY  ","inventory"},
+            {"  ✕  EXIT GAME  ","exit"},
+        };
+
+        Color[] btnColors = {C_PURPLE, new Color(150,100,40), new Color(60,130,200),
+                             new Color(60,130,80), new Color(160,40,40)};
+        gc.insets = new Insets(6, 60, 6, 60);
+        for (int i = 0; i < btns.length; i++) {
+            JButton b = fancyButton(btns[i][0], btnColors[i]);
+            final String action = btns[i][1];
+            b.addActionListener(e -> handleLobbyAction(action));
+            gc.gridy = i + 1;
+            centerPane.add(b, gc);
+        }
+
+        bg.add(centerPane, BorderLayout.CENTER);
+        return bg;
+    }
+
+    private void refreshLobbyUI() {
+        if (player == null) return;
+
+        // Portrait
+        String key = (player instanceof Warrior) ? "warrior" : (player instanceof Mage) ? "mage" : "rogue";
+        Image sc = imgs.get(key).getScaledInstance(220, 220, Image.SCALE_SMOOTH);
+        if (lobbyCharImg  != null) lobbyCharImg.setIcon(new ImageIcon(sc));
+        if (lobbyCharName != null) lobbyCharName.setText(player.getName());
+        if (lobbyWorldLabel != null) {
+            String wn = (currentWorldIdx < worlds.size()) ? worlds.get(currentWorldIdx).getName() : "Story Complete";
+            lobbyWorldLabel.setText("Current: " + wn);
+        }
+        refreshHUD();
+    }
+
+    private void handleLobbyAction(String action) {
+        playSfx("Click.wav");
+        switch (action) {
+            case "adventure" -> startAdventure();
+            case "store"     -> openStoreUI();
+            case "upgrade"   -> openUpgraderUI();
+            case "inventory" -> openInventoryUI();
+            case "exit"      -> confirmExit();
+        }
+    }
+
+    //   HUD (shared top bar)
+    private JPanel buildHUD() {
+
+        JPanel hud = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 8)) {
+            @Override protected void paintComponent(Graphics g) {
+                g.setColor(new Color(10, 8, 25, 200));
+                g.fillRect(0, 0, getWidth(), getHeight());
+                g.setColor(new Color(100, 60, 200, 80));
+                g.drawLine(0, getHeight()-1, getWidth(), getHeight()-1);
+            }
+        };
+
+        hud.setOpaque(false);
+
+        hudName = label("", F_BODY, C_GOLD);
+        hudHp   = bar(C_HP,  120);
+        hudMana = bar(C_MP,  100);
+        hudGold = label("", F_BODY, C_ATK);
+ 
+        hud.add(label("Player:", F_SMALL, C_SILVER));
+        hud.add(hudName);
+        hud.add(label("HP", F_SMALL, C_HP));
+        hud.add(hudHp);
+        hud.add(label("MP", F_SMALL, C_MP));
+        hud.add(hudMana);
+        hud.add(label("Gold:", F_SMALL, C_ATK));
+        hud.add(hudGold);
+        return hud;
+    }
+
+
+    private void refreshHUD() {
+        if (player == null) return;
+        hudName.setText(player.getName());
+        hudHp.setMaximum(player.getMaxHp());
+        hudHp.setValue(player.getHp());
+        hudHp.setString(player.getHp() + "/" + player.getMaxHp());
+        hudMana.setMaximum(player.getMaxMana());
+        hudMana.setValue(player.getMana());
+        hudMana.setString(player.getMana() + "/" + player.getMaxMana());
+        hudGold.setText(player.getGold() + " g");
+    }
+
+    //   ADVENTURE LOGIC
+    private void startAdventure() {
+
+        if (!player.isAlive()) {
+            showNarrativePopup("Cannot Enter", "Your HP is 0. Heal first at the Store.");
+            return;
+        }
+
+        if (storyCompleted) {
+            showStoryFinishedDialog();
+            return;
+        }
+
+        if (currentWorldIdx >= worlds.size()) {
+            storyCompleted = true;
+            showNexusDialog();
+            return;
+        }
+
+        World w = worlds.get(currentWorldIdx);
+        List<Mob> mobs = w.getMobs();
+
+        if (currentMobIdx < mobs.size()) {
+
+            // Regular mob
+            currentEnemy = mobs.get(currentMobIdx);
+            currentEnemy.setHp(currentEnemy.getMaxHp());
+            enterBattle(false);
+        } else {
+            // Boss
+            Boss boss = w.getBoss();
+            if (boss.getHp() > 0) {
+                boss.setHp(boss.getMaxHp());
+                currentEnemy = boss;
+                showBossIntroDialog(boss.getName(), () -> enterBattle(true));
+            } else {
+                advanceWorld();
+            }
+        }
+    }
+
+    private void enterBattle(boolean isBoss) {
+        World w = worlds.get(currentWorldIdx);
+        int totalEnemies = w.getMobs().size() + 1;
+        int enemyNum  = isBoss ? totalEnemies : currentMobIdx + 1;
+        updateBattleUI(isBoss, enemyNum, totalEnemies, w.getName());
+        playBgMusic(isBoss ? "boss_music.wav" : "battle_music.wav");
+        inBattle = true;
+        showScreen("BATTLE");
+    }
+
+    private void updateBattleUI(boolean isBoss, int num, int total, String worldName) {
+
+        // Enemy image
+        String eKey = getEnemyKey(currentEnemy.getName());
+        Image ei = imgs.get(eKey).getScaledInstance(230, 230, Image.SCALE_SMOOTH);
+        bEnemyImg.setIcon(new ImageIcon(ei));
+        bEnemyName.setText((isBoss ? "★ BOSS: " : "") + currentEnemy.getName());
+        bEnemyName.setForeground(isBoss ? C_ATK : C_HP);
+        bEnemyHp.setMaximum(currentEnemy.getMaxHp());
+        bEnemyHp.setValue(currentEnemy.getHp());
+        bEnemyHp.setString(currentEnemy.getHp() + "/" + currentEnemy.getMaxHp());
+
+        // Player image
+        String pKey = (player instanceof Warrior) ? "warrior" : (player instanceof Mage) ? "mage" : "rogue";
+        Image pi = imgs.get(pKey).getScaledInstance(230, 230, Image.SCALE_SMOOTH);
+        bPlayerImg.setIcon(new ImageIcon(pi));
+        bPlayerHp.setMaximum(player.getMaxHp());
+        bPlayerHp.setValue(player.getHp());
+        bPlayerHp.setString(player.getHp() + "/" + player.getMaxHp());
+
+        setBattleLog("Enemy " + num + " / " + total + " in " + worldName +
+            "\nYour move! Choose wisely.");
+    }
+
+    //   BATTLE SCREEN
+    private JPanel buildBattleScreen() {
+        JPanel bg = makeParticleBackground();
+        bg.setLayout(new BorderLayout(0, 0));
+        bg.add(buildHUD(), BorderLayout.NORTH);
+
+        // VS PANEL
+        JPanel vsRow = new JPanel(new GridLayout(1, 3, 0, 0));
+        vsRow.setOpaque(false);
+        vsRow.setBorder(new EmptyBorder(20, 40, 10, 40));
+
+        // Enemy side
+        JPanel enemyPane = glassPanel();
+        enemyPane.setLayout(new BoxLayout(enemyPane, BoxLayout.Y_AXIS));
+        enemyPane.setBorder(new EmptyBorder(16, 20, 16, 20));
+        bEnemyName = label("Enemy", F_HEAD, C_HP);
+        bEnemyName.setAlignmentX(Component.CENTER_ALIGNMENT);
+        bEnemyImg  = new JLabel("", SwingConstants.CENTER);
+        bEnemyImg.setAlignmentX(Component.CENTER_ALIGNMENT);
+        bEnemyHp   = bar(C_HP, 300);
+        bEnemyHp.setAlignmentX(Component.CENTER_ALIGNMENT);
+        enemyPane.add(bEnemyName);
+        enemyPane.add(vgap(8));
+        enemyPane.add(bEnemyImg);
+        enemyPane.add(vgap(10));
+        enemyPane.add(label("HP", F_SMALL, C_HP));
+        enemyPane.add(bEnemyHp);
+
+        // VS label
+        JLabel vsLbl = label("VS", F_HUGE, C_HP);
+        vsLbl.setHorizontalAlignment(SwingConstants.CENTER);
+
+
+        // Player side
+        JPanel playerPane = glassPanel();
+        playerPane.setLayout(new BoxLayout(playerPane, BoxLayout.Y_AXIS));
+        playerPane.setBorder(new EmptyBorder(16, 20, 16, 20));
+        JLabel pName = label(player != null ? player.getName() : "", F_HEAD, C_WIN);
+        pName.setAlignmentX(Component.CENTER_ALIGNMENT);
+        bPlayerImg  = new JLabel("", SwingConstants.CENTER);
+        bPlayerImg.setAlignmentX(Component.CENTER_ALIGNMENT);
+        bPlayerHp   = bar(C_WIN, 300);
+        bPlayerHp.setAlignmentX(Component.CENTER_ALIGNMENT);
+        playerPane.add(pName);
+        playerPane.add(vgap(8));
+        playerPane.add(bPlayerImg);
+        playerPane.add(vgap(10));
+        playerPane.add(label("HP", F_SMALL, C_WIN));
+        playerPane.add(bPlayerHp);
+
+        vsRow.add(enemyPane);
+        vsRow.add(vsLbl);
+        vsRow.add(playerPane);
+        bg.add(vsRow, BorderLayout.CENTER);
