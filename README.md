@@ -1,4 +1,4 @@
 # APOTHECARY-_OOP2_GAME
 
-![image alt ](https://github.com/toniesc-web/APOTHECARY-_OOP2_GAME/blob/924e623615dd744553f0ee445adafef26fd4cc87/Class%20Diagram.jpg)
-![image alt](https://github.com/toniesc-web/APOTHECARY-_OOP2_GAME/blob/9a0c45c2d5e072f482fb5fc427abe9e2a5c29fda/Use%20Case%20DIagram.jpg)
+<img width="1536" height="1024" alt="25046202-5abf-49b7-9afd-f5ed3ac874cc" src="https://github.com/user-attachments/assets/5bb8bbda-f271-44f5-98d5-1d0c692ffad1" />
+
