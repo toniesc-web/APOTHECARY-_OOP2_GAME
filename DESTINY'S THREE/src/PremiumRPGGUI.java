@@ -45,7 +45,9 @@ public class PremiumRPGGUI {
     private JFrame      frame;
     private CardLayout  cards;
     private JPanel      root;
-
+// Add this with your other variables
+private long lastClickTime = 0;
+private static final long CLICK_COOLDOWN = 200; // milliseconds
     // Shared HUD refs updated every tick
     private JLabel  hudName, hudGold;
     private JProgressBar hudHp, hudMana;
@@ -90,25 +92,35 @@ public class PremiumRPGGUI {
         SwingUtilities.invokeLater(() -> new PremiumRPGGUI().launch());
     }
 
-    private void launch() {
-        game   = new Game();
-        worlds = buildWorlds();
-        loadImages();
-        initParticles();
-        buildFrame();
-        showScreen("INTRO");
-    }
+  private void launch() {
+    game   = new Game();
+    worlds = buildWorlds();
+    loadImages();
+    initParticles();
+    buildFrame();
+    showScreen("INTRO");
+    
+    // Test audio files
+    System.out.println("=== TESTING AUDIO FILES ===");
+    
+    File auronFile = new File("C:/Users/Harry/APOTHECARY-_OOP2_GAME/DESTINY'S THREE/src/audio/Auron.wav");
+    File introFile = new File("C:/Users/Harry/APOTHECARY-_OOP2_GAME/DESTINY'S THREE/src/audio/intro_music.wav");
+    
+    System.out.println("Auron.wav exists: " + auronFile.exists() + " | Size: " + auronFile.length() + " bytes");
+    System.out.println("intro_music.wav exists: " + introFile.exists() + " | Size: " + introFile.length() + " bytes");
+    
+    // Play background music only (no click here)
+    System.out.println("\n=== PLAYING INTRO_MUSIC.WAV ===");
+    playBgMusic("intro_music.wav");
+}
 
-    // ─────────────────────────────────────────────────────────────
-    //   WORLD FACTORY  (mirrors Adventure.java setup)
-    // ─────────────────────────────────────────────────────────────
     private List<World> buildWorlds() {
-        List<World> list = new ArrayList<>();
-        list.add(new World("Forest of Beginnings", 3));
-        list.add(new World("Caverns of Shadow",    4));
-        list.add(new World("Citadel of Fate",      5));
-        return list;
-    }
+    List<World> worlds = new ArrayList<>();
+    worlds.add(new World("Forest of Beginnings", 3));
+    worlds.add(new World("Caverns of Shadow", 4));
+    worlds.add(new World("Citadel of Fate", 5));
+    return worlds;
+}
 
     // ─────────────────────────────────────────────────────────────
     //   IMAGE LOADING
@@ -119,7 +131,12 @@ public class PremiumRPGGUI {
         "enemy_wolf","enemy_bat",
         "enemy_guard",
         "boss_guardian","boss_wraith",
-        "boss_warden","logo"
+        "boss_warden","logo",
+        "battle_bg",
+        "button_bg",
+        "forest_bg",      // ← ADD THIS (World 1)
+        "background",     // ← ADD THIS (World 2)
+        "citadel_bg"      // ← ADD THIS (World 3)
     };
 
     for (String k : keys) {
@@ -211,43 +228,72 @@ public class PremiumRPGGUI {
     //   BACKGROUNDS
     // ─────────────────────────────────────────────────────────────
     /** Dark starfield with floating rune-particles */
-    private JPanel makeParticleBackground() {
-        Random rng = new Random();
-        JPanel bg = new JPanel(null) {
-            @Override protected void paintComponent(Graphics g2d) {
-                Graphics2D g = (Graphics2D) g2d;
-                g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                // Deep gradient background
+   private JPanel makeParticleBackground() {
+    return makeParticleBackground(null);
+}
+private Image getWorldBackgroundImage() {
+    switch (currentWorldIdx) {
+        case 0: return imgs.get("forest_bg");     // Forest of Beginnings
+        case 1: return imgs.get("background");    // Caverns of Shadow
+        case 2: return imgs.get("citadel_bg");    // Citadel of Fate
+        default: return imgs.get("background");
+    }
+}
+
+
+private JPanel makeParticleBackground(String bgImageKey) {
+    Random rng = new Random();
+    JPanel bg = new JPanel(null) {
+        @Override
+        protected void paintComponent(Graphics g2d) {
+            Graphics2D g = (Graphics2D) g2d;
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            
+            // Draw background image if provided
+            if (bgImageKey != null) {
+                Image bgImg = imgs.get(bgImageKey);
+                if (bgImg != null) {
+                    g.drawImage(bgImg, 0, 0, getWidth(), getHeight(), null);
+                    // Dark overlay for readability
+                    g.setColor(new Color(0, 0, 0, 150));
+                    g.fillRect(0, 0, getWidth(), getHeight());
+                }
+            } else {
+                // Fallback gradient
                 GradientPaint gp = new GradientPaint(0, 0, C_VOID, getWidth(), getHeight(), C_DEEP);
                 g.setPaint(gp);
                 g.fillRect(0, 0, getWidth(), getHeight());
-                // Grid lines (subtle)
-                g.setColor(new Color(80, 50, 160, 18));
-                g.setStroke(new BasicStroke(0.5f));
-                for (int x = 0; x < getWidth(); x += 60)
-                    g.drawLine(x, 0, x, getHeight());
-                for (int y = 0; y < getHeight(); y += 60)
-                    g.drawLine(0, y, getWidth(), y);
-                // Particles
-                for (int i = 0; i < P_COUNT; i++) {
-                    int alpha = Math.min(255, (int)(palpha[i] * 255));
-                    g.setColor(new Color(160, 100, 255, alpha));
-                    int sz = 2 + (int)(palpha[i] * 3);
-                    g.fillOval((int)px[i], (int)py[i], sz, sz);
-                }
             }
-        };
-        // Animate particles
-        particleTick = new Timer(33, e -> {
+            
+            // Grid lines (subtle)
+            g.setColor(new Color(80, 50, 160, 18));
+            g.setStroke(new BasicStroke(0.5f));
+            for (int x = 0; x < getWidth(); x += 60)
+                g.drawLine(x, 0, x, getHeight());
+            for (int y = 0; y < getHeight(); y += 60)
+                g.drawLine(0, y, getWidth(), y);
+            
+            // Particles
             for (int i = 0; i < P_COUNT; i++) {
-                py[i] -= pspeed[i];
-                if (py[i] < -10) resetParticle(i, rng, false);
+                int alpha = Math.min(255, (int)(palpha[i] * 255));
+                g.setColor(new Color(160, 100, 255, alpha));
+                int sz = 2 + (int)(palpha[i] * 3);
+                g.fillOval((int)px[i], (int)py[i], sz, sz);
             }
-            bg.repaint();
-        });
-        particleTick.start();
-        return bg;
-    }
+        }
+    };
+    
+    // Animate particles
+    particleTick = new Timer(33, e -> {
+        for (int i = 0; i < P_COUNT; i++) {
+            py[i] -= pspeed[i];
+            if (py[i] < -10) resetParticle(i, rng, false);
+        }
+        bg.repaint();
+    });
+    particleTick.start();
+    return bg;
+}
 
     /** Glass panel for content overlays */
     private JPanel glassPanel() {
@@ -269,56 +315,64 @@ public class PremiumRPGGUI {
     // ─────────────────────────────────────────────────────────────
     //   INTRO SCREEN
     // ─────────────────────────────────────────────────────────────
-    private JPanel buildIntroScreen() {
-        JPanel bg = makeParticleBackground();
-        bg.setLayout(new GridBagLayout());
-        GridBagConstraints c = new GridBagConstraints();
-        c.gridx = 0; c.gridy = GridBagConstraints.RELATIVE;
-        c.insets = new Insets(8, 0, 8, 0);
+   private JPanel buildIntroScreen() {
+    JPanel bg = makeParticleBackground();
+    bg.setLayout(new GridBagLayout());
+    GridBagConstraints c = new GridBagConstraints();
+    c.gridx = 0; c.gridy = GridBagConstraints.RELATIVE;
+    c.insets = new Insets(8, 0, 8, 0);
 
-        // Title art
-        JLabel title = new JLabel("<html><center>" +
-            "<span style='font-size:36px;color:#FFC83C;font-family:Monospaced;'>⚔&nbsp;APOTHECARY&nbsp;⚔</span><br>" +
-            "<span style='font-size:22px;color:#B0A0FF;font-family:Monospaced;'>D E S T I N Y ' S &nbsp; T H R E E</span>" +
-            "</center></html>", SwingConstants.CENTER);
-        title.setForeground(C_GOLD);
-
-        JLabel sub = label("― a tale of worlds unraveling ―", F_BODY, C_SILVER);
-        sub.setHorizontalAlignment(SwingConstants.CENTER);
-
-        String[] lines = {
-            "In a land far beyond the stars,",
-            "three worlds were bound by fate.",
-            "Until the day the sky cracked.",
-            "Shards of reality fell like glass.",
-            "And three heroes were chosen...",
-        };
-        JTextArea story = new JTextArea(String.join("\n", lines));
-        story.setFont(F_BODY);
-        story.setForeground(C_SILVER);
-        story.setOpaque(false);
-        story.setEditable(false);
-        story.setFocusable(false);
-        story.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        JButton startBtn = fancyButton("  BEGIN YOUR JOURNEY  ", C_PURPLE);
-        startBtn.addActionListener(e -> { playSfx("Click.wav"); showScreen("CHARSELECT"); });
-
-        JButton skipBtn = smallButton("Skip Story");
-        skipBtn.addActionListener(e -> { playSfx("Click.wav"); showScreen("CHARSELECT"); });
-
-        // Layout
-        JPanel box = glassPanel();
-        box.setLayout(new BoxLayout(box, BoxLayout.Y_AXIS));
-        box.setBorder(new EmptyBorder(40, 60, 40, 60));
-        box.setPreferredSize(new Dimension(680, 380));
-        for (Component comp : new Component[]{title, vgap(12), sub, vgap(20),
-                story, vgap(28), center(startBtn), vgap(8), center(skipBtn)})
-            box.add(comp);
-
-        bg.add(box, c);
-        return bg;
+    // Logo at the top
+    Image logoImg = imgs.get("logo");
+    if (logoImg != null) {
+        Image scaledLogo = logoImg.getScaledInstance(200, 200, Image.SCALE_SMOOTH);
+        JLabel logoLabel = new JLabel(new ImageIcon(scaledLogo));
+        logoLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        bg.add(logoLabel, c);
     }
+
+    // Title art
+    JLabel title = new JLabel("<html><center>" +
+        "<span style='font-size:36px;color:#FFC83C;font-family:Monospaced;'>⚔&nbsp;APOTHECARY&nbsp;⚔</span><br>" +
+        "<span style='font-size:22px;color:#B0A0FF;font-family:Monospaced;'>D E S T I N Y ' S &nbsp; T H R E E</span>" +
+        "</center></html>", SwingConstants.CENTER);
+    title.setForeground(C_GOLD);
+
+    JLabel sub = label("― a tale of worlds unraveling ―", F_BODY, C_SILVER);
+    sub.setHorizontalAlignment(SwingConstants.CENTER);
+
+    String[] lines = {
+        "In a land far beyond the stars,",
+        "three worlds were bound by fate.",
+        "Until the day the sky cracked.",
+        "Shards of reality fell like glass.",
+        "And three heroes were chosen...",
+    };
+    JTextArea story = new JTextArea(String.join("\n", lines));
+    story.setFont(F_BODY);
+    story.setForeground(C_SILVER);
+    story.setOpaque(false);
+    story.setEditable(false);
+    story.setFocusable(false);
+    story.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+    JButton startBtn = fancyButton("  BEGIN YOUR JOURNEY  ", C_PURPLE);
+    startBtn.addActionListener(e -> { playSfx("Click.wav"); showScreen("CHARSELECT"); });
+
+    JButton skipBtn = smallButton("Skip Story");
+    skipBtn.addActionListener(e -> { playSfx("Click.wav"); showScreen("CHARSELECT"); });
+
+    JPanel box = glassPanel();
+    box.setLayout(new BoxLayout(box, BoxLayout.Y_AXIS));
+    box.setBorder(new EmptyBorder(40, 60, 40, 60));
+    box.setPreferredSize(new Dimension(680, 480));
+    for (Component comp : new Component[]{title, vgap(12), sub, vgap(20),
+            story, vgap(28), center(startBtn), vgap(8), center(skipBtn)})
+        box.add(comp);
+
+    bg.add(box, c);
+    return bg;
+}
 
     // ─────────────────────────────────────────────────────────────
     //   CHARACTER SELECT
@@ -416,23 +470,25 @@ public class PremiumRPGGUI {
         return card;
     }
 
-    private void selectHero(String imgKey) {
-        switch (imgKey) {
-            case "warrior" -> player = new Warrior("Auron Steelheart");
-            case "mage"    -> player = new Mage("Kaelen Stormweaver");
-            default        -> player = new Rogue("Sire Instanzia");
-        }
-        currentWorldIdx = 0;
-        currentMobIdx   = 0;
-        storyCompleted  = false;
-        Arrays.fill(storylineDone, false);
-        refreshLobbyUI();
-        playBgMusic("intro_music.wav");
-        showScreen("LOBBY");
-        showNarrativePopup("Prologue",
-            "Three worlds once stood in harmony...\n\nUntil the sky cracked.\n\n" +
-            "Welcome, " + player.getName() + ".\nYour journey — and the fate of all worlds — begins now.");
+   private void selectHero(String imgKey) {
+    switch (imgKey) {
+        case "warrior" -> player = new Warrior("Auron Steelheart");
+        case "mage"    -> player = new Mage("Kaelen Stormweaver");
+        default        -> player = new Rogue("Sire Instanzia");
     }
+    currentWorldIdx = 0;
+    currentMobIdx   = 0;
+    storyCompleted  = false;
+    Arrays.fill(storylineDone, false);
+    refreshLobbyUI();
+    
+    // Remove the duplicate click - keep only ONE
+    // playSfx("Click.wav");  // ← REMOVE THIS LINE (already called from card click)
+    playBgMusic("intro_music.wav");  // Play background music
+    
+    showScreen("LOBBY");
+    showNarrativePopup("Prologue", "Three worlds once stood in harmony until the sky cracked open. The Forest of Beginnings burns, the Caverns of Shadow tremble, and the Citadel of Fate crumbles as rifts consume all. The Master has been taken by a dark Villain who watches from beyond. You are the last hope. Choose your hero, restore the balance, and save the worlds before everything is lost forever. — The Apothecary Prophecy");
+}
 
     // ─────────────────────────────────────────────────────────────
     //   LOBBY SCREEN
@@ -441,10 +497,15 @@ public class PremiumRPGGUI {
     private JLabel   lobbyCharName;
     private JLabel   lobbyWorldLabel;
 
-    private JPanel buildLobbyScreen() {
-        JPanel bg = makeParticleBackground();
-        bg.setLayout(new BorderLayout());
-
+ private JPanel buildLobbyScreen() {
+    // Get the correct background for current world
+    String bgKey = null;
+    if (currentWorldIdx == 0) bgKey = "forest_bg";
+    else if (currentWorldIdx == 1) bgKey = "background";
+    else if (currentWorldIdx == 2) bgKey = "citadel_bg";
+    
+    JPanel bg = makeParticleBackground(bgKey);
+    bg.setLayout(new BorderLayout());
         // ── TOP HUD ─────────────────────────────────────────────
         JPanel hud = buildHUD();
         bg.add(hud, BorderLayout.NORTH);
@@ -512,30 +573,25 @@ public class PremiumRPGGUI {
         return bg;
     }
 
-    private void refreshLobbyUI() {
-        if (player == null) return;
-        // Portrait
-        String key = (player instanceof Warrior) ? "warrior" : (player instanceof Mage) ? "mage" : "rogue";
-        Image sc = imgs.get(key).getScaledInstance(220, 220, Image.SCALE_SMOOTH);
-        if (lobbyCharImg  != null) lobbyCharImg.setIcon(new ImageIcon(sc));
-        if (lobbyCharName != null) lobbyCharName.setText(player.getName());
-        if (lobbyWorldLabel != null) {
-            String wn = (currentWorldIdx < worlds.size()) ? worlds.get(currentWorldIdx).getName() : "Story Complete";
-            lobbyWorldLabel.setText("Current: " + wn);
-        }
-        refreshHUD();
-    }
+   private void refreshLobbyUI() {
+    if (player == null) return;
+    // ... your existing refreshLobbyUI code ...
+}
 
-    private void handleLobbyAction(String action) {
+private void handleLobbyAction(String action) {
+    // NO click sound for adventure mode - prevents the bug
+    if (!action.equals("adventure")) {
         playSfx("Click.wav");
-        switch (action) {
-            case "adventure" -> startAdventure();
-            case "store"     -> openStoreUI();
-            case "upgrade"   -> openUpgraderUI();
-            case "inventory" -> openInventoryUI();
-            case "exit"      -> confirmExit();
-        }
     }
+    
+    switch (action) {
+        case "adventure" -> startAdventure();
+        case "store"     -> openStoreUI();
+        case "upgrade"   -> openUpgraderUI();
+        case "inventory" -> openInventoryUI();
+        case "exit"      -> confirmExit();
+    }
+}
 
     // ─────────────────────────────────────────────────────────────
     //   HUD (shared top bar)
@@ -618,14 +674,17 @@ public class PremiumRPGGUI {
     }
 
     private void enterBattle(boolean isBoss) {
-        World w = worlds.get(currentWorldIdx);
-        int totalEnemies = w.getMobs().size() + 1;
-        int enemyNum  = isBoss ? totalEnemies : currentMobIdx + 1;
-        updateBattleUI(isBoss, enemyNum, totalEnemies, w.getName());
-        playBgMusic(isBoss ? "click.wav" : "click.wav");
-        inBattle = true;
-        showScreen("BATTLE");
-    }
+    World w = worlds.get(currentWorldIdx);
+    int totalEnemies = w.getMobs().size() + 1;
+    int enemyNum  = isBoss ? totalEnemies : currentMobIdx + 1;
+    updateBattleUI(isBoss, enemyNum, totalEnemies, w.getName());
+    
+    // Play intro_music.wav for ALL battles (regular and boss)
+    playBgMusic("intro_music.wav");
+    
+    inBattle = true;
+    showScreen("BATTLE");
+}
 
     private void updateBattleUI(boolean isBoss, int num, int total, String worldName) {
         // Enemy image
@@ -654,146 +713,164 @@ public class PremiumRPGGUI {
     //   BATTLE SCREEN
     // ─────────────────────────────────────────────────────────────
     private JPanel buildBattleScreen() {
-        JPanel bg = makeParticleBackground();
-        bg.setLayout(new BorderLayout(0, 0));
-        bg.add(buildHUD(), BorderLayout.NORTH);
-
-        // ── VS PANEL ─────────────────────────────────────────────
-        JPanel vsRow = new JPanel(new GridLayout(1, 3, 0, 0));
-        vsRow.setOpaque(false);
-        vsRow.setBorder(new EmptyBorder(20, 40, 10, 40));
-
-        // Enemy side
-        JPanel enemyPane = glassPanel();
-        enemyPane.setLayout(new BoxLayout(enemyPane, BoxLayout.Y_AXIS));
-        enemyPane.setBorder(new EmptyBorder(16, 20, 16, 20));
-        bEnemyName = label("Enemy", F_HEAD, C_HP);
-        bEnemyName.setAlignmentX(Component.CENTER_ALIGNMENT);
-        bEnemyImg  = new JLabel("", SwingConstants.CENTER);
-        bEnemyImg.setAlignmentX(Component.CENTER_ALIGNMENT);
-        bEnemyHp   = bar(C_HP, 300);
-        bEnemyHp.setAlignmentX(Component.CENTER_ALIGNMENT);
-        enemyPane.add(bEnemyName);
-        enemyPane.add(vgap(8));
-        enemyPane.add(bEnemyImg);
-        enemyPane.add(vgap(10));
-        enemyPane.add(label("HP", F_SMALL, C_HP));
-        enemyPane.add(bEnemyHp);
-
-        // VS label
-        JLabel vsLbl = label("VS", F_HUGE, C_HP);
-        vsLbl.setHorizontalAlignment(SwingConstants.CENTER);
-
-        // Player side
-        JPanel playerPane = glassPanel();
-        playerPane.setLayout(new BoxLayout(playerPane, BoxLayout.Y_AXIS));
-        playerPane.setBorder(new EmptyBorder(16, 20, 16, 20));
-        JLabel pName = label(player != null ? player.getName() : "", F_HEAD, C_WIN);
-        pName.setAlignmentX(Component.CENTER_ALIGNMENT);
-        bPlayerImg  = new JLabel("", SwingConstants.CENTER);
-        bPlayerImg.setAlignmentX(Component.CENTER_ALIGNMENT);
-        bPlayerHp   = bar(C_WIN, 300);
-        bPlayerHp.setAlignmentX(Component.CENTER_ALIGNMENT);
-        playerPane.add(pName);
-        playerPane.add(vgap(8));
-        playerPane.add(bPlayerImg);
-        playerPane.add(vgap(10));
-        playerPane.add(label("HP", F_SMALL, C_WIN));
-        playerPane.add(bPlayerHp);
-
-        vsRow.add(enemyPane);
-        vsRow.add(vsLbl);
-        vsRow.add(playerPane);
-        bg.add(vsRow, BorderLayout.CENTER);
-
-        // ── BATTLE LOG + ACTIONS ──────────────────────────────────
-        JPanel bottomPane = new JPanel(new BorderLayout(10, 0));
-        bottomPane.setOpaque(false);
-        bottomPane.setBorder(new EmptyBorder(0, 40, 24, 40));
-
-        bBattleLog = label("", F_BODY, C_SILVER);
-        bBattleLog.setPreferredSize(new Dimension(400, 80));
-        bBattleLog.setVerticalAlignment(SwingConstants.TOP);
-        JPanel logPanel = glassPanel();
-        logPanel.setLayout(new BorderLayout());
-        logPanel.setBorder(new EmptyBorder(12, 16, 12, 16));
-        logPanel.setPreferredSize(new Dimension(400, 90));
-        logPanel.add(bBattleLog, BorderLayout.CENTER);
-
-        bActionPanel = new JPanel(new GridLayout(2, 2, 12, 12));
-        bActionPanel.setOpaque(false);
-        bActionPanel.setPreferredSize(new Dimension(480, 100));
-
-        String[] actionLabels = {"  ⚔  ATTACK  ","  ✨  SKILLS  ","  🎒  ITEMS  ","  🏃  RETREAT  "};
-        Color[]  actionColors = {new Color(180,50,50), new Color(80,50,200), new Color(60,120,60), new Color(140,90,30)};
-        int[] aIdx = {0};
-        for (int i = 0; i < 4; i++) {
-            final int idx = i;
-            JButton b = fancyButton(actionLabels[i], actionColors[i]);
-            b.addActionListener(e -> handleBattleAction(idx));
-            bActionPanel.add(b);
-        }
-
-        bottomPane.add(logPanel,     BorderLayout.WEST);
-        bottomPane.add(bActionPanel, BorderLayout.EAST);
-        bg.add(bottomPane, BorderLayout.SOUTH);
-        return bg;
+    // Use battle_bg.png as background
+    Image battleBgImg = imgs.get("battle_bg");
+    JPanel bg;
+    
+    if (battleBgImg != null) {
+        // Custom panel with battle background
+        bg = new JPanel(null) {
+            @Override
+            protected void paintComponent(Graphics g2d) {
+                super.paintComponent(g2d);
+                Graphics2D g = (Graphics2D) g2d;
+                // Draw battle background
+                g.drawImage(battleBgImg, 0, 0, getWidth(), getHeight(), null);
+                // Dark overlay for readability
+                g.setColor(new Color(0, 0, 0, 150));
+                g.fillRect(0, 0, getWidth(), getHeight());
+            }
+        };
+    } else {
+        bg = makeParticleBackground();
     }
+    
+    bg.setLayout(new BorderLayout(0, 0));
+    bg.add(buildHUD(), BorderLayout.NORTH);
+
+    // ── VS PANEL ─────────────────────────────────────────────
+    JPanel vsRow = new JPanel(new GridLayout(1, 3, 0, 0));
+    vsRow.setOpaque(false);
+    vsRow.setBorder(new EmptyBorder(20, 40, 10, 40));
+
+    // Enemy side
+    JPanel enemyPane = glassPanel();
+    enemyPane.setLayout(new BoxLayout(enemyPane, BoxLayout.Y_AXIS));
+    enemyPane.setBorder(new EmptyBorder(16, 20, 16, 20));
+    bEnemyName = label("Enemy", F_HEAD, C_HP);
+    bEnemyName.setAlignmentX(Component.CENTER_ALIGNMENT);
+    bEnemyImg  = new JLabel("", SwingConstants.CENTER);
+    bEnemyImg.setAlignmentX(Component.CENTER_ALIGNMENT);
+    bEnemyHp   = bar(C_HP, 300);
+    bEnemyHp.setAlignmentX(Component.CENTER_ALIGNMENT);
+    enemyPane.add(bEnemyName);
+    enemyPane.add(vgap(8));
+    enemyPane.add(bEnemyImg);
+    enemyPane.add(vgap(10));
+    enemyPane.add(label("HP", F_SMALL, C_HP));
+    enemyPane.add(bEnemyHp);
+
+    // VS label
+    JLabel vsLbl = label("VS", F_HUGE, C_HP);
+    vsLbl.setHorizontalAlignment(SwingConstants.CENTER);
+
+    // Player side
+    JPanel playerPane = glassPanel();
+    playerPane.setLayout(new BoxLayout(playerPane, BoxLayout.Y_AXIS));
+    playerPane.setBorder(new EmptyBorder(16, 20, 16, 20));
+    JLabel pName = label(player != null ? player.getName() : "", F_HEAD, C_WIN);
+    pName.setAlignmentX(Component.CENTER_ALIGNMENT);
+    bPlayerImg  = new JLabel("", SwingConstants.CENTER);
+    bPlayerImg.setAlignmentX(Component.CENTER_ALIGNMENT);
+    bPlayerHp   = bar(C_WIN, 300);
+    bPlayerHp.setAlignmentX(Component.CENTER_ALIGNMENT);
+    playerPane.add(pName);
+    playerPane.add(vgap(8));
+    playerPane.add(bPlayerImg);
+    playerPane.add(vgap(10));
+    playerPane.add(label("HP", F_SMALL, C_WIN));
+    playerPane.add(bPlayerHp);
+
+    vsRow.add(enemyPane);
+    vsRow.add(vsLbl);
+    vsRow.add(playerPane);
+    bg.add(vsRow, BorderLayout.CENTER);
+
+    // ── BATTLE LOG + ACTIONS ──────────────────────────────────
+    JPanel bottomPane = new JPanel(new BorderLayout(10, 0));
+    bottomPane.setOpaque(false);
+    bottomPane.setBorder(new EmptyBorder(0, 40, 24, 40));
+
+    bBattleLog = label("", F_BODY, C_SILVER);
+    bBattleLog.setPreferredSize(new Dimension(400, 80));
+    bBattleLog.setVerticalAlignment(SwingConstants.TOP);
+    JPanel logPanel = glassPanel();
+    logPanel.setLayout(new BorderLayout());
+    logPanel.setBorder(new EmptyBorder(12, 16, 12, 16));
+    logPanel.setPreferredSize(new Dimension(400, 90));
+    logPanel.add(bBattleLog, BorderLayout.CENTER);
+
+    bActionPanel = new JPanel(new GridLayout(2, 2, 12, 12));
+    bActionPanel.setOpaque(false);
+    bActionPanel.setPreferredSize(new Dimension(480, 100));
+
+    String[] actionLabels = {"  ⚔  ATTACK  ","  ✨  SKILLS  ","  🎒  ITEMS  ","  🏃  RETREAT  "};
+    Color[]  actionColors = {new Color(180,50,50), new Color(80,50,200), new Color(60,120,60), new Color(140,90,30)};
+
+    for (int i = 0; i < 4; i++) {
+        final int idx = i;
+        JButton b = fancyButton(actionLabels[i], actionColors[i]);
+        b.addActionListener(e -> handleBattleAction(idx));
+        bActionPanel.add(b);
+    }
+
+    bottomPane.add(logPanel,     BorderLayout.WEST);
+    bottomPane.add(bActionPanel, BorderLayout.EAST);
+    bg.add(bottomPane, BorderLayout.SOUTH);
+    return bg;
+}
 
     private void handleBattleAction(int action) {
-        if (!inBattle || currentEnemy == null || player == null) return;
-        playSfx("Click.wav");
+    if (!inBattle || currentEnemy == null || player == null) return;
+    
+    boolean playerActed = false;
 
-        boolean playerActed = false;
-
-        switch (action) {
-            case 0 -> { // Attack
-                int dmg = player.getAttack() + (int)(Math.random() * 8) + 1;
-                currentEnemy.takeDamage(dmg);
-                setBattleLog("You attack " + currentEnemy.getName() + " for " + dmg + " damage!");
-                playSfx("Win.wav");
-                playerActed = true;
-            }
-            case 1 -> { // Skills
-                showSkillDialog();
-                return;
-            }
-            case 2 -> { // Items
-                openInventoryUI();
-                refreshBattleHPBars();
-                return;
-            }
-            case 3 -> { // Retreat
-                inBattle = false;
-                setBattleLog("You retreat to the lobby...");
-                playBgMusic("lobby_music.wav");
-                refreshLobbyUI();
-                showScreen("LOBBY");
-                return;
-            }
+    switch (action) {
+        case 0 -> { // Attack
+            int dmg = player.getAttack() + (int)(Math.random() * 8) + 1;
+            currentEnemy.takeDamage(dmg);
+            setBattleLog("You attack " + currentEnemy.getName() + " for " + dmg + " damage!");
+            playSfx("Win.wav");
+            playerActed = true;
         }
-
-        if (playerActed) {
+        case 1 -> { // Skills
+            showSkillDialog();
+            return;
+        }
+        case 2 -> { // Items
+            openInventoryUI();
             refreshBattleHPBars();
-            if (!currentEnemy.isAlive()) {
-                handleEnemyDefeated();
-                return;
-            }
-            // Enemy counter-attack
-            int eDmg = currentEnemy.getAttack() + (int)(Math.random() * 6);
-            player.takeDamage(eDmg);
-            setBattleLog(getBattleLog() +
-                "\n" + currentEnemy.getName() + " strikes back for " + eDmg + "!");
-            refreshBattleHPBars();
-            refreshHUD();
-
-            if (!player.isAlive()) {
-                inBattle = false;
-                showScreen("GAMEOVER");
-            }
+            return;
+        }
+        case 3 -> { // Retreat
+            inBattle = false;
+            setBattleLog("You retreat to the lobby...");
+            playBgMusic("Auron.wav");
+            refreshLobbyUI();
+            showScreen("LOBBY");
+            return;
         }
     }
 
+    if (playerActed) {
+        refreshBattleHPBars();
+        if (!currentEnemy.isAlive()) {
+            handleEnemyDefeated();
+            return;
+        }
+        int eDmg = currentEnemy.getAttack() + (int)(Math.random() * 6);
+        player.takeDamage(eDmg);
+        setBattleLog(getBattleLog() + "\n" + currentEnemy.getName() + " strikes back for " + eDmg + "!");
+        refreshBattleHPBars();
+        refreshHUD();
+
+        if (!player.isAlive()) {
+            inBattle = false;
+            playSfx("Ending.wav");
+            showScreen("GAMEOVER");
+        }
+    }
+}
     private String lastLog = "";
     private void setBattleLog(String txt) { lastLog = txt; if (bBattleLog != null) bBattleLog.setText("<html>" + txt.replace("\n","<br>") + "</html>"); }
     private String getBattleLog() { return lastLog; }
@@ -810,52 +887,58 @@ public class PremiumRPGGUI {
         refreshHUD();
     }
 
-    private void handleEnemyDefeated() {
-        playSfx("Win.wav");
-        int gold = 20 + (int)(Math.random() * 20);
-        player.addGold(gold);
-        boolean isBoss = currentEnemy instanceof Boss;
+   
+private void handleEnemyDefeated() {
+    playSfx("Win.wav");
+    int gold = 20 + (int)(Math.random() * 20);
+    player.addGold(gold);
+    boolean isBoss = currentEnemy instanceof Boss;
 
-        // Loot
-        String loot = "";
-        if (!isBoss && Math.random() < 0.5) {
-            if (Math.random() < 0.5) {
-                player.getInventory().addItem(new Potion("Health Potion","Restores 50 HP",50,1));
-                loot = "\n📦 Found: Health Potion!";
-            } else {
-                player.getInventory().addItem(new Weapon("Rusty Blade","A dented but usable sword",5));
-                loot = "\n📦 Found: Rusty Blade!";
-            }
-        }
-        if (isBoss) {
-            player.getInventory().addItem(new Weapon("Boss Relic","Imbued with the essence of the fallen boss",10));
-            player.setMana(player.getMaxMana());
-            loot = "\n★ Boss Relic obtained! +100 gold!";
-            player.addGold(100);
-        }
-        refreshHUD();
-
-        inBattle = false;
-        if (isBoss) {
-            // Advance world
-            currentMobIdx = 0;
-            currentWorldIdx++;
-            playBgMusic("lobby_music.wav");
-            showNarrativePopup("World Cleared!",
-                "You have defeated " + currentEnemy.getName() + "!\n" +
-                "+100 Gold" + loot + "\n\n" +
-                (currentWorldIdx < worlds.size() ?
-                    "Onwards to: " + worlds.get(currentWorldIdx).getName() :
-                    "The Riven Nexus awaits...") +
-                "\n\nReturn to lobby to continue.");
-            refreshLobbyUI();
-            showScreen("LOBBY");
+    // Loot
+    String loot = "";
+    if (!isBoss && Math.random() < 0.5) {
+        if (Math.random() < 0.5) {
+            player.getInventory().addItem(new Potion("Health Potion","Restores 50 HP",50,1));
+            loot = "\n📦 Found: Health Potion!";
         } else {
-            currentMobIdx++;
-            player.setMana(player.getMaxMana());
-            showVictoryPause(gold + loot);
+            player.getInventory().addItem(new Weapon("Rusty Blade","A dented but usable sword",5));
+            loot = "\n📦 Found: Rusty Blade!";
         }
     }
+    if (isBoss) {
+        player.getInventory().addItem(new Weapon("Boss Relic","Imbued with the essence of the fallen boss",10));
+        player.setMana(player.getMaxMana());
+        loot = "\n★ Boss Relic obtained! +100 gold!";
+        player.addGold(100);
+    }
+    refreshHUD();
+
+    inBattle = false;
+    if (isBoss) {
+        // Advance world
+        currentMobIdx = 0;
+        currentWorldIdx++;
+        playBgMusic("intro_music.wav");
+        showNarrativePopup("World Cleared!",
+            "You have defeated " + currentEnemy.getName() + "!\n" +
+            "+100 Gold" + loot + "\n\n" +
+            (currentWorldIdx < worlds.size() ?
+                "Onwards to: " + worlds.get(currentWorldIdx).getName() :
+                "The Riven Nexus awaits...") +
+            "\n\nReturn to lobby to continue.");
+        refreshLobbyUI();
+        refreshLobbyBackground();  // ✅ ADDED - Updates background for next world
+        showScreen("LOBBY");
+    } else {
+        currentMobIdx++;
+        player.setMana(player.getMaxMana());
+        showVictoryPause(gold + loot);
+    }
+}
+    private void refreshLobbyBackground() {
+    // TODO Auto-generated method stub
+    throw new UnsupportedOperationException("Unimplemented method 'refreshLobbyBackground'");
+}
 
     private void showVictoryPause(String msg) {
         JDialog d = new JDialog(frame, "Victory!", false);
@@ -1244,18 +1327,19 @@ public class PremiumRPGGUI {
         onProceed.run();
     }
 
-    private void advanceWorld() {
-        currentMobIdx   = 0;
-        currentWorldIdx++;
-        if (currentWorldIdx >= worlds.size()) {
-            storyCompleted = true;
-            showNexusDialog();
-        } else {
-            showNarrativePopup("World Cleared!",
-                "You advance to: " + worlds.get(currentWorldIdx).getName());
-            refreshLobbyUI();
-        }
+   private void advanceWorld() {
+    currentMobIdx   = 0;
+    currentWorldIdx++;
+    if (currentWorldIdx >= worlds.size()) {
+        storyCompleted = true;
+        showNexusDialog();
+    } else {
+        showNarrativePopup("World Cleared!",
+            "You advance to: " + worlds.get(currentWorldIdx).getName());
+        refreshLobbyUI();
+        refreshLobbyBackground();  // ✅ ADD THIS LINE
     }
+}
 
     private void showNexusDialog() {
         showNarrativePopup("THE RIVEN NEXUS",
@@ -1297,57 +1381,73 @@ public class PremiumRPGGUI {
     //   AUDIO
     // ─────────────────────────────────────────────────────────────
     private File findAudio(String name) {
-    String[] dirs = {
-        "audio/"
-    };
-
-    for (String d : dirs) {
-        File f = new File(d + name);
-        if (f.exists()) return f;
+    System.out.println("🔍 Searching for: " + name);
+    
+    // Absolute path - this WILL work
+    String basePath = "C:/Users/Harry/APOTHECARY-_OOP2_GAME/DESTINY'S THREE/src/audio/";
+    File f = new File(basePath + name);
+    System.out.println("   Checking: " + f.getAbsolutePath());
+    System.out.println("   Exists: " + f.exists());
+    
+    if (f.exists()) {
+        System.out.println("   ✅ FOUND!");
+        return f;
     }
+    
+    System.out.println("   ❌ NOT FOUND!");
     return null;
 }
+    
 
-    private void playBgMusic(String name) {
+   private void playSfx(String name) {
+    // Cooldown to prevent rapid clicking
+    if (name.equals("Click.wav")) {
+        long now = System.currentTimeMillis();
+        if (now - lastClickTime < 300) {
+            return;  // Ignore clicks that are too fast
+        }
+        lastClickTime = now;
+    }
+    
+    sfxPool.submit(() -> {
+        try {
+            File f = findAudio(name);
+            if (f == null) return;
+            AudioInputStream a = AudioSystem.getAudioInputStream(f);
+            Clip c = AudioSystem.getClip();
+            c.open(a);
+            c.start();
+        } catch (Exception e) {
+            System.out.println("SFX ERROR: " + e.getMessage());
+        }
+    });
+}
+private void playBgMusic(String name) {
+    System.out.println("🎵 PLAYING MUSIC: " + name);
     sfxPool.submit(() -> {
         try {
             if (bgMusic != null) {
                 bgMusic.stop();
                 bgMusic.close();
-                bgMusic = null;
             }
-
             File f = findAudio(name);
             if (f == null) {
-                System.out.println("Audio not found: " + name);
+                System.out.println("❌ Music file not found: " + name);
                 return;
             }
-
+            System.out.println("✅ Music file found: " + f.getAbsolutePath());
             AudioInputStream a = AudioSystem.getAudioInputStream(f);
             bgMusic = AudioSystem.getClip();
             bgMusic.open(a);
-
             bgMusic.loop(Clip.LOOP_CONTINUOUSLY);
             bgMusic.start();
-
+            System.out.println("✅ Music started playing!");
         } catch (Exception e) {
-            System.out.println("BG MUSIC ERROR: " + e.getMessage());
+            System.out.println("❌ Music error: " + e.getMessage());
+            e.printStackTrace();
         }
     });
 }
-
-    private void playSfx(String name) {
-        sfxPool.submit(() -> {
-            try {
-                File f = findAudio(name);
-                if (f == null) return;
-                AudioInputStream a = AudioSystem.getAudioInputStream(f);
-                Clip c = AudioSystem.getClip();
-                c.open(a); c.start();
-            } catch (Exception ignored) {}
-        });
-    }
-
     // ─────────────────────────────────────────────────────────────
     //   UI HELPERS
     // ─────────────────────────────────────────────────────────────
@@ -1369,37 +1469,55 @@ public class PremiumRPGGUI {
     }
 
     private JButton fancyButton(String text, Color bg) {
-        JButton b = new JButton(text) {
-            @Override protected void paintComponent(Graphics g2d) {
-                Graphics2D g = (Graphics2D) g2d;
-                g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+    JButton b = new JButton(text) {
+        @Override
+        protected void paintComponent(Graphics g2d) {
+            Graphics2D g = (Graphics2D) g2d;
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            
+            // Use button_bg.png if available
+            Image buttonBg = imgs.get("button_bg");
+            if (buttonBg != null) {
+                g.drawImage(buttonBg, 0, 0, getWidth(), getHeight(), null);
+                // Add overlay for hover/press effects
+                if (getModel().isPressed()) {
+                    g.setColor(new Color(0, 0, 0, 100));
+                    g.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+                } else if (getModel().isRollover()) {
+                    g.setColor(new Color(255, 255, 255, 50));
+                    g.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+                }
+            } else {
+                // Fallback to colored button
                 Color base = getModel().isPressed() ? bg.darker() :
                              getModel().isRollover() ? bg.brighter() : bg;
                 g.setColor(base);
                 g.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
-                g.setColor(new Color(255,255,255,60));
-                g.setStroke(new BasicStroke(1));
-                g.drawRoundRect(1, 1, getWidth()-2, getHeight()-2, 10, 10);
-                super.paintComponent(g);
             }
-        };
-        b.setFont(F_BTN);
-        b.setForeground(Color.WHITE);
-        b.setOpaque(false);
-        b.setContentAreaFilled(false);
-        b.setBorderPainted(false);
-        b.setFocusPainted(false);
-        b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        b.setPreferredSize(new Dimension(b.getPreferredSize().width + 20, 42));
-        return b;
-    }
+            
+            g.setColor(new Color(255,255,255,60));
+            g.setStroke(new BasicStroke(1));
+            g.drawRoundRect(1, 1, getWidth()-2, getHeight()-2, 10, 10);
+            super.paintComponent(g);
+        }
+    };
+    b.setFont(F_BTN);
+    b.setForeground(Color.WHITE);
+    b.setOpaque(false);
+    b.setContentAreaFilled(false);
+    b.setBorderPainted(false);
+    b.setFocusPainted(false);
+    b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+    b.setPreferredSize(new Dimension(b.getPreferredSize().width + 20, 42));
+    return b;
+}
 
     private JButton smallButton(String text) {
-        JButton b = fancyButton(text, new Color(50, 45, 80));
-        b.setPreferredSize(new Dimension(80, 32));
-        b.setFont(F_SMALL);
-        return b;
-    }
+    JButton b = fancyButton(text, new Color(50, 45, 80));
+    b.setPreferredSize(new Dimension(80, 32));
+    b.setFont(F_SMALL);
+    return b;
+}
 
     private JPanel center(Component c) {
         JPanel p = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));

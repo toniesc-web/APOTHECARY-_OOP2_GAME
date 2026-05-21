@@ -729,7 +729,7 @@ private void showCharacterBackstory(Player player) {
             System.out.println("║                                                                                                               ║");
             System.out.println("║                                                                                                               ║");
             System.out.println("║═════════════════════╦═════════════════════╦════════════════════════════╦════════════════════════╦═════════════║");
-            System.out.println("║     ADVENTURE       ║  CANTILLAS'S STORE  ║   CANEDO'S SWORD UPGRADER  ║       INVENTORY        ║    EXIT     ║");
+            System.out.println("║     ADVENTURE       ║  BRYCE'S STORE  ║   CARL'S SWORD UPGRADER  ║       INVENTORY        ║    EXIT     ║");
             System.out.println("╚═════════════════════╩═════════════════════╩════════════════════════════╩════════════════════════╩═════════════╝ ");
             System.out.println("[1] Adventure Mode");
             System.out.println("[2] Store");
@@ -797,15 +797,15 @@ private void showCharacterBackstory(Player player) {
             "║                         CREDITS - DESTINY'S THREE                      ║",
             "╚════════════════════════════════════════════════════════════════════════╝",
             "",
-            "Game Design          : Salado, Samuel O.(Lead Designer & Developer)",
-            "Programming          : Salado, Samuel O., Cantillas Bryce Josef R., Canedo James D.(OOP & Gameplay Systems)",
-            "Art & ASCII Design   : Salado, Samuel O.(Story & Visuals)",
-            "Music & Sound FX     : Salado, Samuel O.(WAV Tracks for Immersion)",
-            "Educational Concept  : Cantillas Bryce Josef R. , Canedo James D.(Integrating coding and storytelling)",
-            "Adventure & Combat   : Salado, Samuel 0., Canedo James D.(Game Mechanics & Enemy Design)",
-            "Character Design     : Salado, Samuel O., Canedo James D. (Player Classes and Skills)",
-            "User Interface       : Salado, Samuel O. (Console-based Menus & ASCII Graphics)",
-            "Testing & QA         : Cantillas Bryce Josef R. (Ensuring Functionality & Fun)",
+            "Game Design          : James Carl Rafanan, Bryce Josef Cantillas, Ashlee Faye Batayola, Mary Antonetthe Escario.(Lead Designer & Developer)",
+            "Programming          : James Carl Rafanan, Bryce Josef Cantillas, Ashlee Faye Batayola, Mary Antonetthe Escario(OOP & Gameplay Systems)",
+            "Art & ASCII Design   : James Carl Rafanan, Bryce Josef Cantillas, Ashlee Faye Batayola, Mary Antonetthe Escario.(Story & Visuals)",
+            "Music & Sound FX     : James Carl Rafanan, Bryce Josef Cantillas, Ashlee Faye Batayola, Mary Antonetthe Escario(WAV Tracks for Immersion)",
+            "Educational Concept  : James Carl Rafanan, Bryce Josef Cantillas, Ashlee Faye Batayola, Mary Antonetthe Escario.(Integrating coding and storytelling)",
+            "Adventure & Combat   : James Carl Rafanan, Bryce Josef Cantillas, Ashlee Faye Batayola, Mary Antonetthe Escario(Game Mechanics & Enemy Design)",
+            "Character Design     : James Carl Rafanan, Bryce Josef Cantillas, Ashlee Faye Batayola, Mary Antonetthe Escario(Player Classes and Skills)",
+            "User Interface       : James Carl Rafanan, Bryce Josef Cantillas, Ashlee Faye Batayola, Mary Antonetthe Escario(Console-based Menus & ASCII Graphics)",
+            "Testing & QA         : James Carl Rafanan, Bryce Josef Cantillas, Ashlee Faye Batayola, Mary Antonetthe Escario(Ensuring Functionality & Fun)",
             "Special Thanks       : All learners exploring Java & Game Development",
             "",
             "Thank you for playing Destiny's Three!",
